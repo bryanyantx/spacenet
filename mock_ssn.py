@@ -79,10 +79,19 @@ def init_db():
         username TEXT NOT NULL,
         comment TEXT NOT NULL
     )''')
-    c.execute("INSERT OR IGNORE INTO users (username, password, role) VALUES ('admin', 'admin', 'admin')")
-    c.execute("INSERT OR IGNORE INTO users (username, password, role) VALUES ('guest', 'guest', 'user')")
-    c.execute("INSERT INTO objects (name, velocity, risk_level, altitude, orbit_type, last_seen) VALUES ('SAT-A1', '7.8 km/s', 'low', '500 km', 'LEO', '2025-04-19 16:00 UTC')")
-    c.execute("INSERT INTO objects (name, velocity, risk_level, altitude, orbit_type, last_seen) VALUES ('DEBRIS-29B', '3.2 km/s', 'high', '950 km', 'MEO', '2025-04-18 12:30 UTC')")
+
+    # Insert default users if not already present
+    c.execute("SELECT COUNT(*) FROM users")
+    if c.fetchone()[0] == 0:
+        c.execute("INSERT INTO users (username, password, role) VALUES ('admin', 'admin', 'admin')")
+        c.execute("INSERT INTO users (username, password, role) VALUES ('guest', 'guest', 'user')")
+
+    # Insert default objects if not already present
+    c.execute("SELECT COUNT(*) FROM objects")
+    if c.fetchone()[0] == 0:
+        c.execute("INSERT INTO objects (name, velocity, risk_level, altitude, orbit_type, last_seen) VALUES ('SAT-A1', '7.8 km/s', 'low', '500 km', 'LEO', '2025-04-19 16:00 UTC')")
+        c.execute("INSERT INTO objects (name, velocity, risk_level, altitude, orbit_type, last_seen) VALUES ('DEBRIS-29B', '3.2 km/s', 'high', '950 km', 'MEO', '2025-04-18 12:30 UTC')")
+
     conn.commit()
     conn.close()
 
