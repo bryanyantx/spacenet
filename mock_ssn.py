@@ -11,7 +11,8 @@ def init_db():
     c.execute('''CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT NOT NULL,
-        password TEXT NOT NULL
+        password TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'user'
     )''')
     c.execute('''CREATE TABLE IF NOT EXISTS objects (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -27,7 +28,8 @@ def init_db():
         username TEXT NOT NULL,
         comment TEXT NOT NULL
     )''')
-    c.execute("INSERT INTO users (username, password) VALUES ('admin', 'admin')")
+    c.execute("INSERT OR IGNORE INTO users (username, password, role) VALUES ('admin', 'admin', 'admin')")
+    c.execute("INSERT OR IGNORE INTO users (username, password, role) VALUES ('guest', 'guest', 'user')")
     c.execute("INSERT INTO objects (name, velocity, risk_level, altitude, orbit_type, last_seen) VALUES ('SAT-A1', '7.8 km/s', 'low', '500 km', 'LEO', '2025-04-19 16:00 UTC')")
     c.execute("INSERT INTO objects (name, velocity, risk_level, altitude, orbit_type, last_seen) VALUES ('DEBRIS-29B', '3.2 km/s', 'high', '950 km', 'MEO', '2025-04-18 12:30 UTC')")
     conn.commit()
@@ -45,13 +47,14 @@ def login():
         
         conn = sqlite3.connect(db_file)
         c = conn.cursor()
-        c.execute(f"SELECT * FROM users WHERE username = '{username}' AND password = '{password}'")
+        c.execute("SELECT * FROM users WHERE username = ? AND password = ?", (username, password))
         user = c.fetchone()
         conn.close()
 
         if user:
             resp = make_response(redirect('/dashboard'))
             resp.set_cookie('username', username)
+            resp.set_cookie('role', user[3])
             return resp
         return 'Invalid credentials'
 
@@ -67,6 +70,7 @@ def login():
 @app.route('/dashboard', methods=['GET', 'POST'])
 def dashboard():
     username = request.cookies.get('username')
+    role = request.cookies.get('role')
     if not username:
         return redirect('/login')
 
@@ -85,7 +89,7 @@ def dashboard():
     conn.close()
 
     object_html = '<ul>' + ''.join([
-        f"<li><a href='/object/{obj[0]}'>{obj[1]}</a> — {obj[2]} — Risk: {obj[3]} <a href='/confirm_delete/{obj[0]}'>[delete]</a></li>"
+        f"<li><a href='/object/{obj[0]}'>{obj[1]}</a> — {obj[2]} — Risk: {obj[3]} " + (f"<a href='/confirm_delete/{obj[0]}'>[delete]</a>" if role == 'admin' else '') + "</li>"
         for obj in data
     ]) + '</ul>'
 
@@ -169,6 +173,10 @@ def add_object():
 
 @app.route('/confirm_delete/<int:object_id>')
 def confirm_delete(object_id):
+    role = request.cookies.get('role')
+    if role != 'admin':
+        return "Access denied"
+
     conn = sqlite3.connect(db_file)
     c = conn.cursor()
     c.execute("SELECT name FROM objects WHERE id = ?", (object_id,))
@@ -188,9 +196,9 @@ def confirm_delete(object_id):
 
 @app.route('/delete_object/<int:object_id>', methods=['POST'])
 def delete_object(object_id):
-    username = request.cookies.get('username')
-    if not username:
-        return redirect('/login')
+    role = request.cookies.get('role')
+    if role != 'admin':
+        return "Access denied"
 
     conn = sqlite3.connect(db_file)
     c = conn.cursor()
@@ -203,6 +211,7 @@ def delete_object(object_id):
 def logout():
     resp = make_response(redirect('/login'))
     resp.set_cookie('username', '', expires=0)
+    resp.set_cookie('role', '', expires=0)
     return resp
 
 if __name__ == '__main__':
