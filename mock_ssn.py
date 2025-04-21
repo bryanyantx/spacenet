@@ -85,7 +85,7 @@ def dashboard():
     conn.close()
 
     object_html = '<ul>' + ''.join([
-        f"<li><a href='/object/{obj[0]}'>{obj[1]}</a> — {obj[2]} — Risk: {obj[3]} <a href='/delete_object/{obj[0]}'>[delete]</a></li>"
+        f"<li><a href='/object/{obj[0]}'>{obj[1]}</a> — {obj[2]} — Risk: {obj[3]} <a href='/confirm_delete/{obj[0]}'>[delete]</a></li>"
         for obj in data
     ]) + '</ul>'
 
@@ -167,7 +167,26 @@ def add_object():
         <a href="/dashboard">Cancel</a>
     ''')
 
-@app.route('/delete_object/<int:object_id>')
+@app.route('/confirm_delete/<int:object_id>')
+def confirm_delete(object_id):
+    conn = sqlite3.connect(db_file)
+    c = conn.cursor()
+    c.execute("SELECT name FROM objects WHERE id = ?", (object_id,))
+    obj = c.fetchone()
+    conn.close()
+    if not obj:
+        return "Object not found"
+
+    return render_template_string(f'''
+        <h2>Confirm Deletion</h2>
+        <p>Are you sure you want to delete <strong>{obj[0]}</strong>?</p>
+        <form method="post" action="/delete_object/{object_id}">
+            <input type="submit" value="Yes, Delete">
+            <a href="/dashboard">Cancel</a>
+        </form>
+    ''')
+
+@app.route('/delete_object/<int:object_id>', methods=['POST'])
 def delete_object(object_id):
     username = request.cookies.get('username')
     if not username:
