@@ -1,4 +1,4 @@
-from flask import Flask, request, render_template_string, redirect, make_response
+from flask import Flask, request, render_template_string, redirect, make_response, url_for
 import sqlite3
 
 app = Flask(__name__)
@@ -17,16 +17,19 @@ def init_db():
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
         velocity TEXT NOT NULL,
-        risk_level TEXT NOT NULL
+        risk_level TEXT NOT NULL,
+        altitude TEXT,
+        orbit_type TEXT,
+        last_seen TEXT
     )''')
     c.execute('''CREATE TABLE IF NOT EXISTS comments (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT NOT NULL,
         comment TEXT NOT NULL
     )''')
-    c.execute("INSERT INTO users (username, password) VALUES ('admin', 'admin')")  # plain text
-    c.execute("INSERT INTO objects (name, velocity, risk_level) VALUES ('SAT-A1', '7.8 km/s', 'low')")
-    c.execute("INSERT INTO objects (name, velocity, risk_level) VALUES ('DEBRIS-29B', '3.2 km/s', 'high')")
+    c.execute("INSERT INTO users (username, password) VALUES ('admin', 'admin')")
+    c.execute("INSERT INTO objects (name, velocity, risk_level, altitude, orbit_type, last_seen) VALUES ('SAT-A1', '7.8 km/s', 'low', '500 km', 'LEO', '2025-04-19 16:00 UTC')")
+    c.execute("INSERT INTO objects (name, velocity, risk_level, altitude, orbit_type, last_seen) VALUES ('DEBRIS-29B', '3.2 km/s', 'high', '950 km', 'MEO', '2025-04-18 12:30 UTC')")
     conn.commit()
     conn.close()
 
@@ -42,7 +45,6 @@ def login():
         
         conn = sqlite3.connect(db_file)
         c = conn.cursor()
-        # vulnerable to SQL injection
         c.execute(f"SELECT * FROM users WHERE username = '{username}' AND password = '{password}'")
         user = c.fetchone()
         conn.close()
@@ -73,7 +75,7 @@ def dashboard():
     c.execute("SELECT * FROM objects")
     data = c.fetchall()
 
-    if request.method == 'POST':
+    if request.method == 'POST' and 'comment' in request.form:
         comment = request.form['comment']
         c.execute("INSERT INTO comments (username, comment) VALUES (?, ?)", (username, comment))
         conn.commit()
@@ -82,13 +84,18 @@ def dashboard():
     comments = c.fetchall()
     conn.close()
 
-    object_html = '<ul>' + ''.join([f"<li>{obj[1]} — {obj[2]} — Risk: {obj[3]}</li>" for obj in data]) + '</ul>'
+    object_html = '<ul>' + ''.join([
+        f"<li><a href='/object/{obj[0]}'>{obj[1]}</a> — {obj[2]} — Risk: {obj[3]}</li>"
+        for obj in data
+    ]) + '</ul>'
+
     comment_html = '<ul>' + ''.join([f"<li><b>{c[0]}</b>: {c[1]}</li>" for c in comments]) + '</ul>'
 
     return render_template_string(f'''
         <h2>Welcome, {username}</h2>
         <h3>Tracked Space Objects</h3>
         {object_html}
+        <a href="/add_object">Add New Object</a>
 
         <h3>Comments</h3>
         {comment_html}
@@ -98,6 +105,66 @@ def dashboard():
         </form>
 
         <a href="/logout">Logout</a>
+    ''')
+
+@app.route('/object/<int:object_id>')
+def object_detail(object_id):
+    conn = sqlite3.connect(db_file)
+    c = conn.cursor()
+    c.execute("SELECT * FROM objects WHERE id = ?", (object_id,))
+    obj = c.fetchone()
+    conn.close()
+
+    if not obj:
+        return "Object not found"
+
+    return render_template_string(f'''
+        <h2>{obj[1]}</h2>
+        <ul>
+            <li><b>Velocity:</b> {obj[2]}</li>
+            <li><b>Risk Level:</b> {obj[3]}</li>
+            <li><b>Altitude:</b> {obj[4]}</li>
+            <li><b>Orbit Type:</b> {obj[5]}</li>
+            <li><b>Last Seen:</b> {obj[6]}</li>
+        </ul>
+        <a href="/dashboard">Back to Dashboard</a>
+    ''')
+
+@app.route('/add_object', methods=['GET', 'POST'])
+def add_object():
+    username = request.cookies.get('username')
+    if not username:
+        return redirect('/login')
+
+    if request.method == 'POST':
+        name = request.form['name']
+        velocity = request.form['velocity']
+        risk_level = request.form['risk_level']
+        altitude = request.form['altitude']
+        orbit_type = request.form['orbit_type']
+        last_seen = request.form['last_seen']
+
+        conn = sqlite3.connect(db_file)
+        c = conn.cursor()
+        c.execute("INSERT INTO objects (name, velocity, risk_level, altitude, orbit_type, last_seen) VALUES (?, ?, ?, ?, ?, ?)",
+                  (name, velocity, risk_level, altitude, orbit_type, last_seen))
+        conn.commit()
+        conn.close()
+
+        return redirect('/dashboard')
+
+    return render_template_string('''
+        <h2>Add New Space Object</h2>
+        <form method="post">
+            Name: <input type="text" name="name"><br>
+            Velocity: <input type="text" name="velocity"><br>
+            Risk Level: <input type="text" name="risk_level"><br>
+            Altitude: <input type="text" name="altitude"><br>
+            Orbit Type: <input type="text" name="orbit_type"><br>
+            Last Seen: <input type="text" name="last_seen"><br>
+            <input type="submit" value="Add Object">
+        </form>
+        <a href="/dashboard">Cancel</a>
     ''')
 
 @app.route('/logout')
