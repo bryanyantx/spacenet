@@ -1,2 +1,4 @@
 .DS_Store
 mock_ssn.db
+__pycache__/
+*.pyc
