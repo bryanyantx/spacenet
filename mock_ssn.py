@@ -85,7 +85,7 @@ def dashboard():
     conn.close()
 
     object_html = '<ul>' + ''.join([
-        f"<li><a href='/object/{obj[0]}'>{obj[1]}</a> — {obj[2]} — Risk: {obj[3]}</li>"
+        f"<li><a href='/object/{obj[0]}'>{obj[1]}</a> — {obj[2]} — Risk: {obj[3]} <a href='/delete_object/{obj[0]}'>[delete]</a></li>"
         for obj in data
     ]) + '</ul>'
 
@@ -166,6 +166,19 @@ def add_object():
         </form>
         <a href="/dashboard">Cancel</a>
     ''')
+
+@app.route('/delete_object/<int:object_id>')
+def delete_object(object_id):
+    username = request.cookies.get('username')
+    if not username:
+        return redirect('/login')
+
+    conn = sqlite3.connect(db_file)
+    c = conn.cursor()
+    c.execute("DELETE FROM objects WHERE id = ?", (object_id,))
+    conn.commit()
+    conn.close()
+    return redirect('/dashboard')
 
 @app.route('/logout')
 def logout():
