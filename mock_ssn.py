@@ -5,6 +5,57 @@ app = Flask(__name__)
 
 db_file = 'mock_ssn.db'
 
+STYLE = '''
+<style>
+    body {
+        background-color: #0f111a;
+        color: #f8f9fa;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        padding: 2em;
+    }
+    h2, h3 {
+        color: #5be7a9;
+    }
+    a {
+        color: #5be7e7;
+        text-decoration: none;
+    }
+    a:hover {
+        text-decoration: underline;
+    }
+    form {
+        margin-top: 1em;
+    }
+    input, textarea {
+        background-color: #1a1d2d;
+        color: #f8f9fa;
+        border: 1px solid #5be7a9;
+        padding: 0.5em;
+        margin-bottom: 0.5em;
+        width: 100%;
+    }
+    input[type="submit"] {
+        background-color: #5be7a9;
+        color: #0f111a;
+        cursor: pointer;
+        width: auto;
+    }
+    input[type="submit"]:hover {
+        background-color: #50c69e;
+    }
+    ul {
+        list-style: none;
+        padding-left: 0;
+    }
+    li {
+        background-color: #1a1d2d;
+        margin: 0.5em 0;
+        padding: 1em;
+        border-left: 4px solid #5be7a9;
+    }
+</style>
+'''
+
 def init_db():
     conn = sqlite3.connect(db_file)
     c = conn.cursor()
@@ -56,9 +107,9 @@ def login():
             resp.set_cookie('username', username)
             resp.set_cookie('role', user[3])
             return resp
-        return 'Invalid credentials'
+        return STYLE + '<h2>Invalid credentials</h2>'
 
-    return render_template_string('''
+    return render_template_string(STYLE + '''
         <h2>SSN Mock Login</h2>
         <form method="post">
             Username: <input type="text" name="username"><br>
@@ -95,7 +146,7 @@ def dashboard():
 
     comment_html = '<ul>' + ''.join([f"<li><b>{c[0]}</b>: {c[1]}</li>" for c in comments]) + '</ul>'
 
-    return render_template_string(f'''
+    return render_template_string(STYLE + f'''
         <h2>Welcome, {username}</h2>
         <h3>Tracked Space Objects</h3>
         {object_html}
@@ -120,9 +171,9 @@ def object_detail(object_id):
     conn.close()
 
     if not obj:
-        return "Object not found"
+        return STYLE + "<h2>Object not found</h2>"
 
-    return render_template_string(f'''
+    return render_template_string(STYLE + f'''
         <h2>{obj[1]}</h2>
         <ul>
             <li><b>Velocity:</b> {obj[2]}</li>
@@ -157,7 +208,7 @@ def add_object():
 
         return redirect('/dashboard')
 
-    return render_template_string('''
+    return render_template_string(STYLE + '''
         <h2>Add New Space Object</h2>
         <form method="post">
             Name: <input type="text" name="name"><br>
@@ -175,7 +226,7 @@ def add_object():
 def confirm_delete(object_id):
     role = request.cookies.get('role')
     if role != 'admin':
-        return "Access denied"
+        return STYLE + "<h2>Access Denied</h2>"
 
     conn = sqlite3.connect(db_file)
     c = conn.cursor()
@@ -183,9 +234,9 @@ def confirm_delete(object_id):
     obj = c.fetchone()
     conn.close()
     if not obj:
-        return "Object not found"
+        return STYLE + "<h2>Object not found</h2>"
 
-    return render_template_string(f'''
+    return render_template_string(STYLE + f'''
         <h2>Confirm Deletion</h2>
         <p>Are you sure you want to delete <strong>{obj[0]}</strong>?</p>
         <form method="post" action="/delete_object/{object_id}">
@@ -198,7 +249,7 @@ def confirm_delete(object_id):
 def delete_object(object_id):
     role = request.cookies.get('role')
     if role != 'admin':
-        return "Access denied"
+        return STYLE + "<h2>Access Denied</h2>"
 
     conn = sqlite3.connect(db_file)
     c = conn.cursor()
