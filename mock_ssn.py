@@ -19,6 +19,11 @@ def init_db():
         velocity TEXT NOT NULL,
         risk_level TEXT NOT NULL
     )''')
+    c.execute('''CREATE TABLE IF NOT EXISTS comments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT NOT NULL,
+        comment TEXT NOT NULL
+    )''')
     c.execute("INSERT INTO users (username, password) VALUES ('admin', 'admin')")  # plain text
     c.execute("INSERT INTO objects (name, velocity, risk_level) VALUES ('SAT-A1', '7.8 km/s', 'low')")
     c.execute("INSERT INTO objects (name, velocity, risk_level) VALUES ('DEBRIS-29B', '3.2 km/s', 'high')")
@@ -57,7 +62,7 @@ def login():
         </form>
     ''')
 
-@app.route('/dashboard')
+@app.route('/dashboard', methods=['GET', 'POST'])
 def dashboard():
     username = request.cookies.get('username')
     if not username:
@@ -67,13 +72,31 @@ def dashboard():
     c = conn.cursor()
     c.execute("SELECT * FROM objects")
     data = c.fetchall()
+
+    if request.method == 'POST':
+        comment = request.form['comment']
+        c.execute("INSERT INTO comments (username, comment) VALUES (?, ?)", (username, comment))
+        conn.commit()
+
+    c.execute("SELECT username, comment FROM comments")
+    comments = c.fetchall()
     conn.close()
 
     object_html = '<ul>' + ''.join([f"<li>{obj[1]} — {obj[2]} — Risk: {obj[3]}</li>" for obj in data]) + '</ul>'
+    comment_html = '<ul>' + ''.join([f"<li><b>{c[0]}</b>: {c[1]}</li>" for c in comments]) + '</ul>'
+
     return render_template_string(f'''
         <h2>Welcome, {username}</h2>
         <h3>Tracked Space Objects</h3>
         {object_html}
+
+        <h3>Comments</h3>
+        {comment_html}
+        <form method="post">
+            <textarea name="comment" rows="3" cols="50"></textarea><br>
+            <input type="submit" value="Post Comment">
+        </form>
+
         <a href="/logout">Logout</a>
     ''')
 
